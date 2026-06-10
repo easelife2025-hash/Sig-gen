@@ -1,0 +1,6 @@
+{
+  "name": "SigGen - AI Signature Generator",
+  "description": "A production-ready AI Signature Generator SaaS using Next.js, Gemini API, and Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
