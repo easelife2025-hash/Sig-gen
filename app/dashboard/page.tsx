@@ -15,6 +15,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const signatureStyles = [
   { id: 1, family: "'Caveat', cursive", label: "Casual Marker" },
@@ -32,6 +33,7 @@ const signatureStyles = [
 export default function SignatureDashboard() {
   const [name, setName] = useState("Alex Designer");
   const [color, setColor] = useState("#0f172a");
+  const [vibe, setVibe] = useState("Any");
   const [isGenerating, setIsGenerating] = useState(false);
   interface SignatureAnalysis {
     id: number;
@@ -65,6 +67,7 @@ export default function SignatureDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           name, 
+          vibe,
           fonts: signatureStyles.map(s => ({ id: s.id, fontName: s.family, label: s.label })) 
         })
       });
@@ -153,9 +156,9 @@ export default function SignatureDashboard() {
           <p className="text-slate-500">Create beautiful handwritten digital signatures instantly.</p>
         </div>
 
-        <Card className="p-2 border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 items-center inline-flex w-full md:w-auto">
+        <Card className="p-2 border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 inline-flex w-full md:w-auto">
           <div className="flex flex-col md:flex-row gap-3 w-full p-2">
-            <div className="relative flex-1 md:w-80">
+            <div className="relative flex-1 md:w-64">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <PenTool className="h-4 w-4 text-slate-400" />
               </div>
@@ -168,18 +171,34 @@ export default function SignatureDashboard() {
               />
             </div>
             
-            <div className="flex gap-3">
-              <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md">
+            <div className="flex items-center gap-2">
+              <Select value={vibe} onValueChange={setVibe}>
+                <SelectTrigger className="w-[140px] h-11 bg-slate-50 border-none shadow-none focus:ring-1 focus:ring-indigo-500">
+                  <SelectValue placeholder="Select vibe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Any">Any Vibe</SelectItem>
+                  <SelectItem value="Professional">Professional</SelectItem>
+                  <SelectItem value="Aesthetic">Aesthetic</SelectItem>
+                  <SelectItem value="Bold">Bold</SelectItem>
+                  <SelectItem value="Minimalist">Minimalist</SelectItem>
+                  <SelectItem value="Quirky">Quirky</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center justify-center bg-slate-50 px-3 py-1.5 rounded-md h-11 border-none shadow-none">
                 <Label htmlFor="color-picker" className="sr-only">Color</Label>
                 <input 
                   id="color-picker"
                   type="color" 
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
+                  className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent"
                 />
               </div>
-              
+            </div>
+            
+            <div className="flex">
               <Button 
                 onClick={handleGenerate}
                 disabled={isGenerating}

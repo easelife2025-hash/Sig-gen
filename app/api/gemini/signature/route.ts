@@ -34,7 +34,7 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, fonts } = await req.json();
+    const { name, fonts, vibe } = await req.json();
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: "Invalid name provided." }, { status: 400 });
@@ -42,10 +42,16 @@ export async function POST(req: NextRequest) {
 
     const aiClient = getAI();
 
+    const vibeText = vibe && vibe !== "Any" 
+      ? `The user requested specifically a "${vibe}" vibe for their signatures. Please heavily skew your analysis, score ratings, and recommendations towards this requested vibe.`
+      : '';
+
     const prompt = `
       Analyze the name "${name}" and generate a signature profile for each of the following font styles.
       For each font, provide a creative description of how the signature looks, score its professionalism and uniqueness out of 100, and recommend a use case.
       
+      ${vibeText}
+
       Font styles to analyze:
       ${JSON.stringify(fonts, null, 2)}
     `;
