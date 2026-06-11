@@ -30,6 +30,8 @@ const responseSchema = {
   }
 };
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const { name, fonts } = await req.json();

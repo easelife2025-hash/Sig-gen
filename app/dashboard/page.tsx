@@ -67,15 +67,16 @@ export default function SignatureDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate styles');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to generate styles');
       }
 
       const data = await response.json();
       setGeneratedSigs({ name, color, analysis: data.results });
       toast.success("Generated 10 unique signature styles!");
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Failed to generate styles with AI. Please try again.");
+      toast.error(error.message || "Failed to generate styles with AI. Please try again.");
     } finally {
       setIsGenerating(false);
     }
