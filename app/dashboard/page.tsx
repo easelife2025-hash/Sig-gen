@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import * as htmlToImage from "html-to-image";
 import { toast } from "sonner";
 import { 
-  Download, Image as ImageIcon, Heart, Copy, RefreshCw, Wand2, Search, Maximize2, PenTool 
+  Download, Image as ImageIcon, Heart, Copy, RefreshCw, Wand2, Search, Maximize2, PenTool, AlertTriangle
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,7 @@ export default function SignatureDashboard() {
   }
 
   const [generatedSigs, setGeneratedSigs] = useState<{name: string, color: string, analysis: SignatureAnalysis[]} | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
@@ -56,6 +57,7 @@ export default function SignatureDashboard() {
     
     setIsGenerating(true);
     setGeneratedSigs(null);
+    setErrorMsg(null);
     try {
       const response = await fetch('/api/gemini/signature', {
         method: 'POST',
@@ -76,7 +78,9 @@ export default function SignatureDashboard() {
       toast.success("Generated 10 unique signature styles!");
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || "Failed to generate styles with AI. Please try again.");
+      const msg = error.message || "Failed to generate styles with AI. Please try again.";
+      toast.error(msg);
+      setErrorMsg(msg);
     } finally {
       setIsGenerating(false);
     }
@@ -345,6 +349,19 @@ export default function SignatureDashboard() {
             ))}
           </motion.div>
         </AnimatePresence>
+      ) : errorMsg ? (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="flex flex-col items-center justify-center min-h-[40vh] text-slate-400 px-4"
+        >
+          <div className="w-24 h-24 bg-red-50 shadow-sm border border-red-100 rounded-full flex items-center justify-center mb-6">
+             <AlertTriangle className="w-10 h-10 text-red-400" />
+          </div>
+          <p className="text-xl font-medium text-slate-700">Generation Failed</p>
+          <p className="text-base text-slate-500 mt-2 max-w-md text-center">{errorMsg}</p>
+        </motion.div>
       ) : (
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}

@@ -68,8 +68,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ results: json });
   } catch (error: any) {
     console.error("Gemini API Error:", error);
+    let errorMsg = error.message || "Failed to generate signature analysis.";
+    try {
+      // Sometimes the underlying SDK throws a JSON string as the error message.
+      if (errorMsg.startsWith('{') || errorMsg.startsWith('[')) {
+        const parsed = JSON.parse(errorMsg);
+        if (parsed.error && parsed.error.message) {
+          errorMsg = parsed.error.message;
+        } else if (Array.isArray(parsed) && parsed[0] && parsed[0].error && parsed[0].error.message) {
+          errorMsg = parsed[0].error.message;
+        }
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+
     return NextResponse.json(
-      { error: error.message || "Failed to generate signature analysis." },
+      { error: errorMsg },
       { status: 500 }
     );
   }
