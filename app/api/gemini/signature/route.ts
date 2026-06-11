@@ -56,14 +56,39 @@ export async function POST(req: NextRequest) {
       ${JSON.stringify(fonts, null, 2)}
     `;
 
-    const response = await aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
+    let response;
+    let attempts = 0;
+    let lastError: any;
+
+    while (attempts < 3) {
+      try {
+        response = await aiClient.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: responseSchema,
+          }
+        });
+        break; // Success
+      } catch (err: any) {
+        lastError = err;
+        attempts++;
+        const msg = err?.message || "";
+        // If it's a 503 or overload, wait and retry.
+        if (msg.toLowerCase().includes("high demand") || msg.toLowerCase().includes("503") || msg.toLowerCase().includes("overloaded")) {
+          if (attempts < 3) {
+            await new Promise(res => setTimeout(res, 2000 * attempts)); // wait 2s, then 4s
+            continue;
+          }
+        }
+        throw err; // Not something we can retry, or out of retries
       }
-    });
+    }
+
+    if (!response) {
+      throw lastError || new Error("Failed to generate content.");
+    }
 
     const text = response.text;
     if (!text) {
