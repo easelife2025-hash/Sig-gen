@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import * as htmlToImage from "html-to-image";
 import { toast } from "sonner";
@@ -318,6 +319,16 @@ export default function SignatureDashboard() {
                         title="Copy to Clipboard"
                       >
                         <Copy className="w-4 h-4" />
+                      </Button>
+
+                      <Button 
+                        render={<Link href={`/dashboard/learn?font=${encodeURIComponent(style.family)}&text=${encodeURIComponent(generatedSigs.name)}`} />}
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                        title="Practice this signature"
+                      >
+                        <PenTool className="w-4 h-4" />
                       </Button>
                       
                       <div className="flex rounded-md shadow-sm ml-1">

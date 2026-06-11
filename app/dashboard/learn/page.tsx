@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, useAnimation } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +38,14 @@ const SIGNATURES = [
   }
 ];
 
-export default function LearnSignature() {
+function LearnSignature() {
+  const searchParams = useSearchParams();
+  const customFont = searchParams.get('font');
+  const customText = searchParams.get('text');
+
+  const initialMode = (customFont && customText) ? 'custom' : 'curated';
+  const [activeTabMode, setActiveTabMode] = useState<'curated' | 'custom'>(initialMode);
+  
   const [activeSigId, setActiveSigId] = useState(SIGNATURES[0].id);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -172,7 +181,7 @@ export default function LearnSignature() {
             <CardContent className="p-6">
               <h3 className="font-semibold text-lg mb-2">Want a custom signature?</h3>
               <p className="text-indigo-100 text-sm mb-4">Generate your own personalized signature in the dashboard and add it to your learning queue.</p>
-              <Button variant="secondary" className="w-full bg-white text-indigo-600 hover:bg-indigo-50 shadow-sm">
+              <Button variant="secondary" className="w-full bg-white text-indigo-600 hover:bg-indigo-50 shadow-sm" render={<Link href="/dashboard" />}>
                 Generate Custom Signature
               </Button>
             </CardContent>
@@ -377,5 +386,13 @@ export default function LearnSignature() {
 
       </div>
     </div>
+  );
+}
+
+export default function LearnSignaturePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading signature studio...</div>}>
+      <LearnSignature />
+    </Suspense>
   );
 }
