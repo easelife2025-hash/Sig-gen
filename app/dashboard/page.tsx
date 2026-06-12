@@ -18,29 +18,32 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const signatureStyles = [
-  { id: 1, label: "Executive Signature", desc: "A firm, decisive loop." },
-  { id: 2, label: "Minimal Signature", desc: "Sleek and restrained." },
+  { id: 1, label: "Executive Signature", desc: "A firm, decisive cursive." },
+  { id: 2, label: "Minimal Signature", desc: "Sleek and restrained loops." },
   { id: 3, label: "Luxury Signature", desc: "Elegant curves for high-end feel." },
   { id: 4, label: "Fast Signing Style", desc: "Rapid angular strokes." },
   { id: 5, label: "Celebrity Inspired", desc: "Big confident swoops." },
-  { id: 6, label: "Initial-Based", desc: "Focuses powerfully on the first letter." },
+  { id: 6, label: "Initial-Based", desc: "Focuses powerfully on the start." },
   { id: 7, label: "Modern Personal Brand", desc: "Clean, geometric flow." },
-  { id: 8, label: "Premium Calligraphy", desc: "Thick and thin organic lines." }
+  { id: 8, label: "Premium Calligraphy", desc: "Thick and thin organic lines." },
+  { id: 9, label: "Vintage Pen", desc: "Classic swooping handwriting." },
+  { id: 10, label: "Bold Marker", desc: "Thick, expressive loops." }
 ];
+
+interface SignatureAnalysis {
+  id: number;
+  description: string;
+  professionalismScore: number;
+  uniquenessScore: number;
+  recommendation: string;
+  svgPathData?: string;
+}
 
 export default function SignatureDashboard() {
   const [name, setName] = useState("Alex Designer");
   const [color, setColor] = useState("#0f172a");
   const [vibe, setVibe] = useState("Any");
   const [isGenerating, setIsGenerating] = useState(false);
-  interface SignatureAnalysis {
-    id: number;
-    description: string;
-    professionalismScore: number;
-    uniquenessScore: number;
-    recommendation: string;
-    svgPathData?: string;
-  }
 
   const [generatedSigs, setGeneratedSigs] = useState<{name: string, color: string, analysis: SignatureAnalysis[]} | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -89,7 +92,7 @@ export default function SignatureDashboard() {
 
       const data = await response.json();
       setGeneratedSigs({ name, color, analysis: data.results });
-      toast.success("Generated 8 unique signature styles!");
+      toast.success("Generated 10 unique signature styles!");
     } catch (error: any) {
       console.error(error);
       const msg = error.message || "Failed to generate styles with AI. Please try again.";
@@ -225,7 +228,7 @@ export default function SignatureDashboard() {
       {/* Grid of Results */}
       {isGenerating ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[...Array(8)].map((_, i) => (
+          {[...Array(10)].map((_, i) => (
             <Card key={i} className="overflow-hidden border-slate-200 shadow-sm flex flex-col h-[280px]">
               <CardContent className="p-0 flex flex-col h-full">
                 <div className="flex items-center justify-center h-40 p-8 border-b border-slate-100">
@@ -307,11 +310,8 @@ export default function SignatureDashboard() {
                           >
                              <path 
                                d={analysis.svgPathData} 
-                               stroke={generatedSigs.color} 
-                               strokeWidth="4" 
-                               strokeLinecap="round" 
-                               strokeLinejoin="round" 
-                               fill="none" 
+                               stroke="none"
+                               fill={generatedSigs.color} 
                              />
                           </svg>
                         )
@@ -375,15 +375,16 @@ export default function SignatureDashboard() {
                         <Copy className="w-4 h-4" />
                       </Button>
 
-                      <Button 
-                        render={<Link href={`/dashboard/learn?text=${encodeURIComponent(generatedSigs.name)}`} />}
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                        title="Practice this signature"
-                      >
-                        <PenTool className="w-4 h-4" />
-                      </Button>
+                      <Link href={`/dashboard/learn?text=${encodeURIComponent(generatedSigs.name)}`}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                          title="Practice this signature"
+                        >
+                          <PenTool className="w-4 h-4" />
+                        </Button>
+                      </Link>
                       
                       <div className="flex rounded-md shadow-sm ml-1">
                         <Button 
@@ -463,11 +464,8 @@ export default function SignatureDashboard() {
                       >
                          <path 
                            d={analysis.svgPathData} 
-                           stroke={generatedSigs.color} 
-                           strokeWidth="5" 
-                           strokeLinecap="round" 
-                           strokeLinejoin="round" 
-                           fill="none" 
+                           stroke="none"
+                           fill={generatedSigs.color} 
                          />
                       </svg>
                     )
