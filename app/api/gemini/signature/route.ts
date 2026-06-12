@@ -48,8 +48,9 @@ export async function POST(req: NextRequest) {
 
     const prompt = `
       Analyze the name "${name}" and generate a signature profile for each of the following font styles.
-      For each font, provide a creative description of how the signature looks, score its professionalism and uniqueness out of 100, and recommend a use case.
+      For each font, provide a highly distinct but EXTREMELY BRIEF (max 1 sentence) profile of how the signature looks, score its professionalism and uniqueness out of 100, and recommend a use case.
       
+      CRITICAL: You must generate the response fast. Keep the descriptions to 1 sentence maximum to reduce tokens!
       ${vibeText}
 
       Font styles to analyze:
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
     `;
 
     let response;
+    let timeoutId: NodeJS.Timeout;
     
     try {
       // 10 second timeout for the API call to ensure we don't hit serverless timeouts
@@ -66,15 +68,19 @@ export async function POST(req: NextRequest) {
         config: {
           responseMimeType: "application/json",
           responseSchema: responseSchema,
+          temperature: 0.5,
+          topK: 30,
         }
       });
       
-      const timeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout Exceeded")), 10000)
-      );
+      const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("Timeout Exceeded")), 25000);
+      });
 
       response = await Promise.race([apiCall, timeout]) as any;
+      clearTimeout(timeoutId!);
     } catch (err: any) {
+      if (timeoutId!) clearTimeout(timeoutId);
       console.error("GenAI Generation Error or Timeout:", err?.message || err);
     }
 

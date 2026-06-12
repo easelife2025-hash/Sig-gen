@@ -73,8 +73,19 @@ export default function SignatureDashboard() {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to generate styles');
+        let errStr = 'Failed to generate styles';
+        try {
+          const errData = await response.json();
+          errStr = errData?.error || errStr;
+        } catch(e) {
+           // fallback to text if not json
+           errStr = await response.text().catch(() => errStr) || errStr;
+           // If it's a huge HTML page, truncate it
+           if (errStr.includes('<html')) {
+             errStr = 'Server returned a generic error page (possibly a timeout)';
+           }
+        }
+        throw new Error(errStr);
       }
 
       const data = await response.json();
