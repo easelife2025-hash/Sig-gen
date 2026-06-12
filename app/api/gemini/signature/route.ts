@@ -28,17 +28,16 @@ const fontUrls = [
   'https://fonts.gstatic.com/s/alexbrush/v23/SZc83FzrJKuqFbwMKk6EhUXz6w.woff'
 ];
 
-async function generateSvgPath(url: string, text: string): Promise<string> {
-  const maxSize = 450;
-  const maxHeight = 150;
+async function generateSvgData(url: string, text: string, styleId: number): Promise<any> {
+  const maxSize = 400;
+  const maxHeight = 120;
   
   try {
     const fontResponse = await fetch(url);
-    if (!fontResponse.ok) return '';
+    if (!fontResponse.ok) return null;
     const fontBuffer = await fontResponse.arrayBuffer();
     const font = opentype.parse(fontBuffer);
     
-    // Find optimal font size
     let fontSize = 120;
     let path = font.getPath(text, 0, 0, fontSize);
     let bbox = path.getBoundingBox();
@@ -54,13 +53,11 @@ async function generateSvgPath(url: string, text: string): Promise<string> {
        height = bbox.y2 - bbox.y1;
     }
 
-    // Center it in a 500x200 canvas
     const startX = (500 - width) / 2 - bbox.x1;
     const startY = (200 - height) / 2 - bbox.y1;
     const finalPath = font.getPath(text, startX, startY, fontSize);
     
-    // Custom serialization to avoid NaN issues in opentype.js
-    return finalPath.commands.map(cmd => {
+    const textPathData = finalPath.commands.map(cmd => {
         if (cmd.type === 'M') return 'M' + cmd.x + ',' + cmd.y;
         if (cmd.type === 'L') return 'L' + cmd.x + ',' + cmd.y;
         if (cmd.type === 'Q') return 'Q' + cmd.x1 + ',' + cmd.y1 + ' ' + cmd.x + ',' + cmd.y;
@@ -68,9 +65,45 @@ async function generateSvgPath(url: string, text: string): Promise<string> {
         if (cmd.type === 'Z') return 'Z';
         return '';
     }).join(' ');
+
+    const paths = [{ d: textPathData, isStroke: false }];
+
+    // Variations based on styleId
+    const skewX = (styleId % 3 === 0) ? -15 : (styleId % 4 === 0) ? -5 : 0;
+    const scale = (styleId % 5 === 0) ? 1.1 : 1;
+    const strokeWidth = (styleId % 2 === 0) ? 2 : Math.max(1, fontSize * 0.02);
+
+    let transform = `translate(250, 100) skewX(${skewX}) scale(${scale}) translate(-250, -100)`;
+
+    // Add Underline
+    if (styleId % 2 === 0 || styleId % 7 === 0) {
+      const underlineY = startY + height + 10;
+      const underlineStartX = startX - 20;
+      const underlineEndX = startX + width + 30;
+      paths.push({ 
+        d: `M ${underlineStartX} ${underlineY} Q ${startX + width/2} ${underlineY + 5} ${underlineEndX} ${underlineY - 5}`, 
+        isStroke: true 
+      });
+    }
+
+    // Add Flourish
+    if (styleId % 3 === 0 || styleId % 5 === 0) {
+      const flY = startY + height + 25;
+      const flX = startX + width / 2;
+      paths.push({
+        d: `M ${flX - 40} ${flY} C ${flX - 20} ${flY + 10}, ${flX + 20} ${flY + 10}, ${flX + 40} ${flY} S ${flX + 60} ${flY - 5}, ${flX + 80} ${flY - 10}`,
+        isStroke: true
+      });
+    }
+
+    return {
+      paths,
+      transform,
+      strokeWidth
+    };
   } catch (e) {
     console.error('Font fetch error', e);
-    return '';
+    return null;
   }
 }
 
@@ -158,11 +191,22 @@ export async function POST(req: NextRequest) {
        };
        
        const fontUrl = fontUrls[idx % fontUrls.length];
-       const svgPathData = await generateSvgPath(fontUrl, name);
+       let svgData = await generateSvgData(fontUrl, name, style.id);
        
+       if (!svgData) {
+         svgData = {
+           paths: [{ 
+             d: "M 50 120 C 30 40, 80 180, 120 100 S 160 80, 200 120 Q 220 140, 240 100 C 260 60, 280 150, 320 110 S 360 80, 400 120 Q 420 140, 450 100 C 470 70, 480 130, 490 110",
+             isStroke: true
+           }],
+           transform: "",
+           strokeWidth: 4
+         };
+       }
+
        return {
          ...aiMatching,
-         svgPathData: svgPathData || "M 50 120 C 30 40, 80 180, 120 100 S 160 80, 200 120 Q 220 140, 240 100 C 260 60, 280 150, 320 110 S 360 80, 400 120 Q 420 140, 450 100 C 470 70, 480 130, 490 110"
+         svgData: svgData
        };
     }));
 

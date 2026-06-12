@@ -36,11 +36,18 @@ interface SignatureAnalysis {
   professionalismScore: number;
   uniquenessScore: number;
   recommendation: string;
-  svgPathData?: string;
+  svgData?: {
+    paths: {
+      d: string;
+      isStroke?: boolean;
+    }[];
+    transform: string;
+    strokeWidth: number;
+  };
 }
 
 export default function SignatureDashboard() {
-  const [name, setName] = useState("Alex Designer");
+  const [name, setName] = useState("Rudu");
   const [color, setColor] = useState("#0f172a");
   const [vibe, setVibe] = useState("Any");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -285,7 +292,7 @@ export default function SignatureDashboard() {
                     >
                       {(() => {
                         const analysis = generatedSigs.analysis?.find((a) => a.id === style.id);
-                        if (!analysis || !analysis.svgPathData) {
+                        if (!analysis || !analysis.svgData) {
                           // Fallback to text if SVG somehow failed for a single item
                           return (
                             <span 
@@ -308,11 +315,19 @@ export default function SignatureDashboard() {
                              className="w-full h-full transform origin-center transition-transform hover:scale-105 drop-shadow-sm"
                              preserveAspectRatio="xMidYMid meet"
                           >
-                             <path 
-                               d={analysis.svgPathData} 
-                               stroke="none"
-                               fill={generatedSigs.color} 
-                             />
+                             <g transform={analysis.svgData.transform}>
+                                {analysis.svgData.paths.map((p, pIdx) => (
+                                   <path 
+                                     key={pIdx}
+                                     d={p.d} 
+                                     stroke={p.isStroke ? generatedSigs.color : "none"}
+                                     fill={p.isStroke ? "none" : generatedSigs.color}
+                                     strokeWidth={p.isStroke ? analysis.svgData!.strokeWidth : 0}
+                                     strokeLinecap="round"
+                                     strokeLinejoin="round"
+                                   />
+                                ))}
+                             </g>
                           </svg>
                         )
                       })()}
@@ -455,18 +470,26 @@ export default function SignatureDashboard() {
             <div className="p-12 md:p-24 flex items-center justify-center min-h-[300px] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
                {(() => {
                   const analysis = generatedSigs.analysis?.find(s => s.id === previewId);
-                  if (analysis?.svgPathData) {
+                  if (analysis?.svgData) {
                     return (
                       <svg
                          viewBox="0 0 500 200"
                          className="w-full h-full drop-shadow-sm"
                          preserveAspectRatio="xMidYMid meet"
                       >
-                         <path 
-                           d={analysis.svgPathData} 
-                           stroke="none"
-                           fill={generatedSigs.color} 
-                         />
+                         <g transform={analysis.svgData.transform}>
+                            {analysis.svgData.paths.map((p, pIdx) => (
+                               <path 
+                                 key={pIdx}
+                                 d={p.d} 
+                                 stroke={p.isStroke ? generatedSigs.color : "none"}
+                                 fill={p.isStroke ? "none" : generatedSigs.color}
+                                 strokeWidth={p.isStroke ? analysis.svgData!.strokeWidth : 0}
+                                 strokeLinecap="round"
+                                 strokeLinejoin="round"
+                               />
+                            ))}
+                         </g>
                       </svg>
                     )
                   }

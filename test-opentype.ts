@@ -1,31 +1,52 @@
 import opentype from 'opentype.js';
 
-const names = [
-  'Caveat', 'Dancing Script', 'Pacifico', 'Satisfy', 'Sacramento',
-  'Great Vibes', 'Allura', 'Parisienne', 'Yellowtail', 'Alex Brush'
-];
-
-async function testFetchFont() {
-  const urls: string[] = [];
+async function generateSvgPath(url: string, text: string): Promise<string> {
+  const maxSize = 450;
+  const maxHeight = 150;
+  
   try {
-    for (const name of names) {
-      const parsedName = name.replace(/ /g, '+');
-      const cssResponse = await fetch('https://fonts.googleapis.com/css?family=' + parsedName, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:2.0.1) Gecko/20100101 Firefox/4.0.1'
-        }
-      });
-      const css = await cssResponse.text();
-      const urlMatch = css.match(/url\((https:\/\/[^)]+\.woff)\)/);
-      if (urlMatch) {
-         urls.push(urlMatch[1]);
-      } else {
-         console.log("Not found for", name);
-      }
+    const fontResponse = await fetch(url);
+    if (!fontResponse.ok) {
+       console.log("NOT OK", fontResponse.status);
+       return '';
     }
-    console.log(urls);
-  } catch(e) {
-    console.error(e);
+    const fontBuffer = await fontResponse.arrayBuffer();
+    const font = opentype.parse(fontBuffer);
+    
+    // Find optimal font size
+    let fontSize = 120;
+    let path = font.getPath(text, 0, 0, fontSize);
+    let bbox = path.getBoundingBox();
+    let width = bbox.x2 - bbox.x1;
+    let height = bbox.y2 - bbox.y1;
+    
+    if (width > maxSize || height > maxHeight) {
+       const scale = Math.min(maxSize / width, maxHeight / height);
+       fontSize = fontSize * scale;
+       path = font.getPath(text, 0, 0, fontSize);
+       bbox = path.getBoundingBox();
+       width = bbox.x2 - bbox.x1;
+       height = bbox.y2 - bbox.y1;
+    }
+
+    // Center it in a 500x200 canvas
+    const startX = (500 - width) / 2 - bbox.x1;
+    const startY = (200 - height) / 2 - bbox.y1;
+    const finalPath = font.getPath(text, startX, startY, fontSize);
+    
+    // Custom serialization to avoid NaN issues in opentype.js
+    return finalPath.commands.map(cmd => {
+        if (cmd.type === 'M') return 'M' + cmd.x + ',' + cmd.y;
+        if (cmd.type === 'L') return 'L' + cmd.x + ',' + cmd.y;
+        if (cmd.type === 'Q') return 'Q' + cmd.x1 + ',' + cmd.y1 + ' ' + cmd.x + ',' + cmd.y;
+        if (cmd.type === 'C') return 'C' + cmd.x1 + ',' + cmd.y1 + ' ' + cmd.x2 + ',' + cmd.y2 + ' ' + cmd.x + ',' + cmd.y;
+        if (cmd.type === 'Z') return 'Z';
+        return '';
+    }).join(' ');
+  } catch (e) {
+    console.error('Font fetch error', e);
+    return '';
   }
 }
-testFetchFont();
+
+generateSvgPath('https://fonts.gstatic.com/s/caveat/v23/WnznHAc5bAfYB2QRah7pcpNvOx-pjfJ9eIWpZw.woff', 'Rudu').then(console.log);
