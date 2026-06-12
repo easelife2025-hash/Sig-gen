@@ -1,40 +1,33 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 
-// We initialize the SDK safely
-let ai: GoogleGenAI | null = null;
+export const maxDuration = 60; // Set maximum duration for Vercel/serverless environments
+
+let aiClient: GoogleGenAI | null = null;
 function getAI() {
-  if (!ai) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
+  if (!aiClient) {
+    if (!process.env.GEMINI_API_KEY) {
       throw new Error("GEMINI_API_KEY environment variable is missing.");
     }
-    ai = new GoogleGenAI({ apiKey: key });
+    aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   }
-  return ai;
+  return aiClient;
 }
 
-const responseSchema = {
-  type: Type.ARRAY,
-  description: "A list of 10 signature style analyses, one for each provided font ID.",
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      id: { type: Type.INTEGER, description: "The ID of the font style." },
-      description: { type: Type.STRING, description: "A highly descriptive, creative analysis of what this signature style says about the person based on their name." },
-      professionalismScore: { type: Type.INTEGER, description: "A score from 1 to 100 rating how professional this style looks for this specific name." },
-      uniquenessScore: { type: Type.INTEGER, description: "A score from 1 to 100 rating how unique and distinct this style looks." },
-      recommendation: { type: Type.STRING, description: "A short recommendation on where to best use this signature (e.g., 'Best for legal documents', 'Great for personal emails')." }
-    },
-    required: ["id", "description", "professionalismScore", "uniquenessScore", "recommendation"]
-  }
-};
-
-export const maxDuration = 60;
+const fallbackPaths = [
+  "M 50 120 C 30 40, 80 180, 120 100 S 160 80, 200 120 Q 220 140, 240 100 C 260 60, 280 150, 320 110 S 360 80, 400 120 Q 420 140, 450 100 C 470 70, 480 130, 490 110",
+  "M 60 110 C 40 50, 20 170, 100 130 S 140 90, 180 110 Q 200 120, 220 100 C 240 80, 260 140, 300 120 S 340 90, 380 110 Q 400 120, 430 90 C 450 60, 470 120, 480 100",
+  "M 70 130 C 50 30, 10 190, 130 110 S 160 100, 190 120 Q 210 130, 230 110 C 250 90, 270 140, 300 120 S 330 100, 360 130 Q 380 140, 400 110 C 420 80, 440 150, 460 100",
+  "M 55 105 C 25 60, 45 160, 115 125 S 155 85, 195 105 Q 215 115, 235 95 C 255 75, 275 135, 315 115 S 355 85, 395 105 Q 415 115, 445 85 C 465 55, 485 145, 495 125",
+  "M 45 115 C 25 35, 75 185, 115 95 S 155 75, 195 115 Q 215 135, 235 95 C 255 55, 275 145, 315 105 S 355 75, 395 115 Q 415 135, 445 95 C 465 65, 485 125, 495 105",
+  "M 65 125 C 35 70, 55 170, 125 105 S 165 95, 205 125 Q 225 135, 245 115 C 265 95, 285 155, 325 125 S 365 95, 405 115 Q 425 125, 455 95 C 475 65, 490 130, 498 110",
+  "M 50 130 C 20 60, 80 20, 120 100 S 160 140, 200 100 Q 220 80, 240 120 C 260 160, 280 70, 320 110 S 360 150, 400 90 Q 420 70, 450 110 C 470 140, 480 80, 490 120",
+  "M 40 110 C 20 70, 30 150, 90 120 S 130 90, 170 110 Q 190 120, 210 100 C 230 80, 250 140, 290 120 S 330 90, 370 110 Q 390 120, 420 90 C 440 60, 460 130, 490 100"
+];
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, fonts, vibe } = await req.json();
+    const { name, styles, vibe } = await req.json();
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: "Invalid name provided." }, { status: 400 });
@@ -43,33 +36,59 @@ export async function POST(req: NextRequest) {
     const aiClient = getAI();
 
     const vibeText = vibe && vibe !== "Any" 
-      ? `The user requested specifically a "${vibe}" vibe for their signatures. Please heavily skew your analysis, score ratings, and recommendations towards this requested vibe.`
+      ? `The user requested specifically a "${vibe}" vibe for their signatures.`
       : '';
 
     const prompt = `
-      Analyze the name "${name}" and generate a signature profile for each of the following font styles.
-      For each font, provide a highly distinct but EXTREMELY BRIEF (max 1 sentence) profile of how the signature looks, score its professionalism and uniqueness out of 100, and recommend a use case.
-      
-      CRITICAL: You must generate the response fast. Keep the descriptions to 1 sentence maximum to reduce tokens!
+      Create exactly ${styles?.length || 8} highly realistic handwritten signature SVG path strings \`d\` attribute for the name "${name}".
       ${vibeText}
+      
+      For each of the following categorical styles, generate a distinct, authentic signature. DO NOT just output a generic wave.
+      Use cursive, capitalized first letters, varying heights, realistic pen squiggles, flourishes, and loops.
+      Ensure the path perfectly fits inside a 500x200 viewBox space.
+      
+      Output real SVG path \`d\` strings (M ..., C ..., S ..., Q ...) matching the requested style name.
+      Keep description to 1 concise sentence.
 
-      Font styles to analyze:
-      ${JSON.stringify(fonts, null, 2)}
+      Categories:
+      ${JSON.stringify(styles, null, 2)}
     `;
 
+    const responseSchema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        results: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.INTEGER },
+              description: { type: Type.STRING },
+              svgPathData: { type: Type.STRING, description: "The raw SVG path string commands" },
+              professionalismScore: { type: Type.INTEGER },
+              uniquenessScore: { type: Type.INTEGER },
+              recommendation: { type: Type.STRING },
+            },
+            required: ["id", "description", "svgPathData", "professionalismScore", "uniquenessScore", "recommendation"]
+          }
+        }
+      },
+      required: ["results"]
+    };
+
     let response;
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout | null = null;
     
     try {
-      // 10 second timeout for the API call to ensure we don't hit serverless timeouts
+      // 25 second timeout for the API call to ensure we don't hit serverless timeouts
       const apiCall = aiClient.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
           responseSchema: responseSchema,
-          temperature: 0.5,
-          topK: 30,
+          temperature: 0.8,
+          topK: 40,
         }
       });
       
@@ -78,17 +97,18 @@ export async function POST(req: NextRequest) {
       });
 
       response = await Promise.race([apiCall, timeout]) as any;
-      clearTimeout(timeoutId!);
+      if (timeoutId) clearTimeout(timeoutId);
     } catch (err: any) {
-      if (timeoutId!) clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       console.error("GenAI Generation Error or Timeout:", err?.message || err);
     }
 
     if (!response || !response.text) {
       // Fallback response for graceful degradation
-      const fallbackResults = fonts.map((f: any) => ({
+      const fallbackResults = styles.map((f: any, idx: number) => ({
         id: f.id,
-        description: `A ${vibe !== "Any" ? vibe.toLowerCase() : "stylish"} take on ${name}, utilizing the natural flow of ${f.fontName || "this script"} to create an elegant sign-off.`,
+        description: `A ${vibe !== "Any" ? vibe.toLowerCase() : "stylish"} take on ${name}, utilizing a natural cursive flow.`,
+        svgPathData: fallbackPaths[idx % fallbackPaths.length],
         professionalismScore: vibe === "Professional" ? 95 : Math.floor(Math.random() * 30) + 60,
         uniquenessScore: Math.floor(Math.random() * 30) + 60,
         recommendation: `Great for ${vibe !== "Any" ? vibe.toLowerCase() : "everyday"} correspondence and digital signatures.`
@@ -98,31 +118,14 @@ export async function POST(req: NextRequest) {
 
     const text = response.text;
     if (!text) {
-        throw new Error("Gemini returned an empty response.");
+      throw new Error("Empty response from AI");
     }
 
-    const json = JSON.parse(text);
-    return NextResponse.json({ results: json });
+    const data = JSON.parse(text);
+    return NextResponse.json(data);
+
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    let errorMsg = error.message || "Failed to generate signature analysis.";
-    try {
-      // Sometimes the underlying SDK throws a JSON string as the error message.
-      if (errorMsg.startsWith('{') || errorMsg.startsWith('[')) {
-        const parsed = JSON.parse(errorMsg);
-        if (parsed.error && parsed.error.message) {
-          errorMsg = parsed.error.message;
-        } else if (Array.isArray(parsed) && parsed[0] && parsed[0].error && parsed[0].error.message) {
-          errorMsg = parsed[0].error.message;
-        }
-      }
-    } catch (e) {
-      // Ignore parsing errors
-    }
-
-    return NextResponse.json(
-      { error: errorMsg },
-      { status: 500 }
-    );
+    console.error("Signature Generation Error:", error);
+    return NextResponse.json({ error: error.message || "Failed to generate styles" }, { status: 500 });
   }
 }

@@ -18,16 +18,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const signatureStyles = [
-  { id: 1, family: "'Caveat', cursive", label: "Casual Marker" },
-  { id: 2, family: "'Dancing Script', cursive", label: "Elegant Cursive" },
-  { id: 3, family: "'Pacifico', cursive", label: "Retro Brush" },
-  { id: 4, family: "'Satisfy', cursive", label: "Smooth Flow" },
-  { id: 5, family: "'Sacramento', cursive", label: "Monoline Script" },
-  { id: 6, family: "'Great Vibes', cursive", label: "Formal Calligraphy" },
-  { id: 7, family: "'Allura', cursive", label: "Delicate Pen" },
-  { id: 8, family: "'Parisienne', cursive", label: "French Vintage" },
-  { id: 9, family: "'Yellowtail', cursive", label: "Bold Marker" },
-  { id: 10, family: "'Alex Brush', cursive", label: "Classic Brush" },
+  { id: 1, label: "Executive Signature", desc: "A firm, decisive loop." },
+  { id: 2, label: "Minimal Signature", desc: "Sleek and restrained." },
+  { id: 3, label: "Luxury Signature", desc: "Elegant curves for high-end feel." },
+  { id: 4, label: "Fast Signing Style", desc: "Rapid angular strokes." },
+  { id: 5, label: "Celebrity Inspired", desc: "Big confident swoops." },
+  { id: 6, label: "Initial-Based", desc: "Focuses powerfully on the first letter." },
+  { id: 7, label: "Modern Personal Brand", desc: "Clean, geometric flow." },
+  { id: 8, label: "Premium Calligraphy", desc: "Thick and thin organic lines." }
 ];
 
 export default function SignatureDashboard() {
@@ -41,6 +39,7 @@ export default function SignatureDashboard() {
     professionalismScore: number;
     uniquenessScore: number;
     recommendation: string;
+    svgPathData?: string;
   }
 
   const [generatedSigs, setGeneratedSigs] = useState<{name: string, color: string, analysis: SignatureAnalysis[]} | null>(null);
@@ -68,7 +67,7 @@ export default function SignatureDashboard() {
         body: JSON.stringify({ 
           name, 
           vibe,
-          fonts: signatureStyles.map(s => ({ id: s.id, fontName: s.family, label: s.label })) 
+          styles: signatureStyles.map(s => ({ id: s.id, label: s.label, desc: s.desc })) 
         })
       });
 
@@ -90,7 +89,7 @@ export default function SignatureDashboard() {
 
       const data = await response.json();
       setGeneratedSigs({ name, color, analysis: data.results });
-      toast.success("Generated 10 unique signature styles!");
+      toast.success("Generated 8 unique signature styles!");
     } catch (error: any) {
       console.error(error);
       const msg = error.message || "Failed to generate styles with AI. Please try again.";
@@ -226,7 +225,7 @@ export default function SignatureDashboard() {
       {/* Grid of Results */}
       {isGenerating ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[...Array(10)].map((_, i) => (
+          {[...Array(8)].map((_, i) => (
             <Card key={i} className="overflow-hidden border-slate-200 shadow-sm flex flex-col h-[280px]">
               <CardContent className="p-0 flex flex-col h-full">
                 <div className="flex items-center justify-center h-40 p-8 border-b border-slate-100">
@@ -281,17 +280,42 @@ export default function SignatureDashboard() {
                       ref={(el) => { cardRefs.current[style.id] = el; }}
                       className="flex items-center justify-center h-40 p-6 lg:p-8 overflow-hidden bg-transparent w-full relative z-0"
                     >
-                      <span 
-                        style={{ 
-                          fontFamily: style.family, 
-                          color: generatedSigs.color,
-                          fontSize: 'clamp(2rem, 3.5vw, 3.5rem)',
-                          lineHeight: 1.2
-                        }}
-                        className="whitespace-nowrap inline-block transform origin-center transition-transform hover:scale-105"
-                      >
-                        {generatedSigs.name}
-                      </span>
+                      {(() => {
+                        const analysis = generatedSigs.analysis?.find((a) => a.id === style.id);
+                        if (!analysis || !analysis.svgPathData) {
+                          // Fallback to text if SVG somehow failed for a single item
+                          return (
+                            <span 
+                              style={{ 
+                                color: generatedSigs.color,
+                                fontSize: 'clamp(2rem, 3.5vw, 3.5rem)',
+                                lineHeight: 1.2,
+                                fontWeight: 'bold',
+                                fontStyle: 'italic'
+                              }}
+                              className="whitespace-nowrap inline-block transform origin-center transition-transform hover:scale-105"
+                            >
+                              {generatedSigs.name.charAt(0)}...
+                            </span>
+                          );
+                        }
+                        return (
+                          <svg
+                             viewBox="0 0 500 200"
+                             className="w-full h-full transform origin-center transition-transform hover:scale-105 drop-shadow-sm"
+                             preserveAspectRatio="xMidYMid meet"
+                          >
+                             <path 
+                               d={analysis.svgPathData} 
+                               stroke={generatedSigs.color} 
+                               strokeWidth="4" 
+                               strokeLinecap="round" 
+                               strokeLinejoin="round" 
+                               fill="none" 
+                             />
+                          </svg>
+                        )
+                      })()}
                     </div>
 
                     <div className="p-4 border-t border-slate-100 bg-white flex-1 space-y-3">
@@ -352,7 +376,7 @@ export default function SignatureDashboard() {
                       </Button>
 
                       <Button 
-                        render={<Link href={`/dashboard/learn?font=${encodeURIComponent(style.family)}&text=${encodeURIComponent(generatedSigs.name)}`} />}
+                        render={<Link href={`/dashboard/learn?text=${encodeURIComponent(generatedSigs.name)}`} />}
                         variant="ghost" 
                         size="icon" 
                         className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
@@ -428,17 +452,41 @@ export default function SignatureDashboard() {
           
           {previewId && generatedSigs && (
             <div className="p-12 md:p-24 flex items-center justify-center min-h-[300px] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
-               <span 
-                  style={{ 
-                    fontFamily: signatureStyles.find(s => s.id === previewId)?.family, 
-                    color: generatedSigs.color,
-                    fontSize: '5rem',
-                    lineHeight: 1.2
-                  }}
-                  className="whitespace-nowrap inline-block drop-shadow-sm"
-                >
-                  {generatedSigs.name}
-                </span>
+               {(() => {
+                  const analysis = generatedSigs.analysis?.find(s => s.id === previewId);
+                  if (analysis?.svgPathData) {
+                    return (
+                      <svg
+                         viewBox="0 0 500 200"
+                         className="w-full h-full drop-shadow-sm"
+                         preserveAspectRatio="xMidYMid meet"
+                      >
+                         <path 
+                           d={analysis.svgPathData} 
+                           stroke={generatedSigs.color} 
+                           strokeWidth="5" 
+                           strokeLinecap="round" 
+                           strokeLinejoin="round" 
+                           fill="none" 
+                         />
+                      </svg>
+                    )
+                  }
+                  return (
+                    <span 
+                      style={{ 
+                        color: generatedSigs.color,
+                        fontSize: '5rem',
+                        lineHeight: 1.2,
+                        fontWeight: 'bold',
+                        fontStyle: 'italic'
+                      }}
+                      className="whitespace-nowrap inline-block drop-shadow-sm"
+                    >
+                      {generatedSigs.name.charAt(0)}...
+                    </span>
+                  );
+               })()}
             </div>
           )}
           
