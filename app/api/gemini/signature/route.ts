@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
-import opentype from 'opentype.js';
+import * as opentype from 'opentype.js';
 
 export const maxDuration = 60;
 
@@ -28,14 +28,20 @@ const fontUrls = [
   'https://fonts.gstatic.com/s/alexbrush/v23/SZc83FzrJKuqFbwMKk6EhUXz6w.woff'
 ];
 
+const fontCache: Record<string, ArrayBuffer> = {};
+
 async function generateSvgData(url: string, text: string, styleId: number): Promise<any> {
   const maxSize = 400;
   const maxHeight = 120;
   
   try {
-    const fontResponse = await fetch(url);
-    if (!fontResponse.ok) return null;
-    const fontBuffer = await fontResponse.arrayBuffer();
+    let fontBuffer = fontCache[url];
+    if (!fontBuffer) {
+      const fontResponse = await fetch(url);
+      if (!fontResponse.ok) return null;
+      fontBuffer = await fontResponse.arrayBuffer();
+      fontCache[url] = fontBuffer;
+    }
     const font = opentype.parse(fontBuffer);
     
     let fontSize = 120;
@@ -163,6 +169,9 @@ export async function POST(req: NextRequest) {
           responseSchema: responseSchema,
           temperature: 0.8,
         }
+      }).catch(err => {
+        console.error("GenAI background error:", err?.message);
+        return null; // Return null so we don't throw an unhandled rejection later
       });
       
       let timeoutId: NodeJS.Timeout | null = null;
@@ -213,7 +222,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ results: finalResults });
 
   } catch (error: any) {
-    console.error("Signature Generation Error:", error);
+    console.error("Signature Generation Error Outer Level:", error);
     return NextResponse.json({ error: error.message || "Failed to generate styles" }, { status: 500 });
   }
 }
