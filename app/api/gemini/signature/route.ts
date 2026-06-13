@@ -27,18 +27,42 @@ export async function POST(req: NextRequest) {
       : '';
 
     const prompt = `
-Generate ${styles.length} unique, professional handwritten signature designs for the name "${name}".
-Each signature must be creative, stylish and look like real human signatures, not simple font text.
+You are a professional signature designer.
+Generate ${styles.length} unique, stylish handwritten signature designs for the name "${name}". Each signature must clearly contain and be based on the exact letters of the given name.
 
-Requirements:
-- Use the letters of "${name}" clearly but in a creative way.
-- Add stylish loops, flourishes, underlines, tail strokes.
-- Mix big initials, connections, and artistic elements.
-- Make each signature DIFFERENT from the others.
-- Real handwritten look, natural pen flow, varying sizes. 
-- IMPORTANT: Include dramatic loops, sweeping underlines, messy connecting strokes, overlapping paths, and artistic flair to make it look authentically drawn by a human hand quickly. 
-- Avoid plain font-style signatures completely. Do NOT make it look like a standard cursive font. It should look like an established executive's rapid signature.
-- Return clean SVG paths only (no background, no boxes, no explanation).
+REQUIREMENTS:
+1. The signature must clearly reflect the letters of the name "${name}" in the correct order and spelling.
+2. Use natural cursive handwriting with smooth flows, loops, and creative connections.
+3. Each signature should look like a real human signature used on documents.
+4. Add professional touches like flourishes, underlines, dots, tail strokes, or initials style where appropriate.
+5. Avoid simple lines, waves, zigzags, scribbles, or abstract shapes.
+6. Make every signature unique in style, slant, and flow.
+7. Ensure the name is still clearly readable.
+8. Output only clean SVG paths (no background, no text, no explanation).
+9. Do not add any extra letters or change the name.
+10. Create signatures suitable for official documents, email signatures, branding, etc.
+
+STYLE GUIDELINES:
+- Elegant
+- Professional
+- Creative
+- Realistic handwritten look
+- Varied styles (initial-based, underline, loop, slant, flourish)
+- Readable
+
+GOOD EXAMPLES (CONCEPT):
+- ${name} with a large initial and connected letters
+- Initial with underline and rest in cursive
+- Flowing style with a tail stroke
+- Compact style with elegant loops
+- Stylish slanted signature with dots or accents
+
+IMPORTANT:
+- Do not create random scribbles or abstract shapes.
+- Do not create wave-like or zigzag lines.
+- Do not generate signatures that do not resemble the name "${name}".
+- Do not break the letter order or spelling.
+- Do not make it unreadable.
 
 ${vibeText}
 
