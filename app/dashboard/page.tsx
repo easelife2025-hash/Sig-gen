@@ -68,38 +68,67 @@ export default function SignatureDashboard() {
     }
     
     setIsGenerating(true);
-    setGeneratedSigs(null);
+    // Initialize with empty array so UI can show them progressively
+    setGeneratedSigs({ name, color, analysis: [] });
     setErrorMsg(null);
+    
     try {
-      const response = await fetch('/api/gemini/signature', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name, 
-          vibe,
-          styles: signatureStyles.map(s => ({ id: s.id, label: s.label, desc: s.desc })) 
-        })
-      });
+      let currentAnalysis: SignatureAnalysis[] = [];
+      const batchSize = 2; // small batches to avoid timeouts and quotas
+      let hadPartialError = false;
 
-      if (!response.ok) {
-        let errStr = 'Failed to generate styles';
+      for (let i = 0; i < signatureStyles.length; i += batchSize) {
+        const batch = signatureStyles.slice(i, i + batchSize);
+        
         try {
-          const errData = await response.json();
-          errStr = errData?.error || errStr;
-        } catch(e) {
-           // fallback to text if not json
-           errStr = await response.text().catch(() => errStr) || errStr;
-           // If it's a huge HTML page, truncate it
-           if (errStr.includes('<html')) {
-             errStr = 'Server returned a generic error page (possibly a timeout)';
-           }
+          const response = await fetch('/api/gemini/signature', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              name, 
+              vibe,
+              styles: batch.map(s => ({ id: s.id, label: s.label, desc: s.desc })) 
+            })
+          });
+
+          if (!response.ok) {
+            let errStr = 'Failed to generate styles';
+            try {
+              const errData = await response.json();
+              errStr = errData?.error || errStr;
+            } catch(e) {
+               errStr = await response.text().catch(() => errStr) || errStr;
+               if (errStr.includes('<html')) {
+                 errStr = 'Server returned a generic error page (possibly a timeout)';
+               }
+            }
+            throw new Error(errStr);
+          }
+
+          const data = await response.json();
+          if (data.results) {
+            currentAnalysis = [...currentAnalysis, ...data.results];
+            setGeneratedSigs({ name, color, analysis: currentAnalysis });
+          }
+        } catch (batchError) {
+          console.error("Batch error:", batchError);
+          hadPartialError = true;
+          // Wait briefly before retrying next batch
+          await new Promise(r => setTimeout(r, 2000));
         }
-        throw new Error(errStr);
+
+        // Slight delay between successful batches to respect rate limits
+        await new Promise(r => setTimeout(r, 800));
       }
 
-      const data = await response.json();
-      setGeneratedSigs({ name, color, analysis: data.results });
-      toast.success("Generated 10 unique signature styles!");
+      if (currentAnalysis.length === 0) {
+        throw new Error("Failed to generate any signatures. Please try again.");
+      } else if (hadPartialError) {
+        toast.warning("Generated some styles, but encountered errors on others.");
+      } else {
+        toast.success("Generated 10 unique signature styles!");
+      }
+      
     } catch (error: any) {
       console.error(error);
       const msg = error.message || "Failed to generate styles with AI. Please try again.";
@@ -233,203 +262,195 @@ export default function SignatureDashboard() {
       </div>
 
       {/* Grid of Results */}
-      {isGenerating ? (
+      {isGenerating || generatedSigs ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[...Array(10)].map((_, i) => (
-            <Card key={i} className="overflow-hidden border-slate-200 shadow-sm flex flex-col h-[280px]">
-              <CardContent className="p-0 flex flex-col h-full">
-                <div className="flex items-center justify-center h-40 p-8 border-b border-slate-100">
-                  <Skeleton className="h-8 w-3/4 rounded-full" />
-                </div>
-                <div className="p-4 flex-1 space-y-3">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-5/6" />
-                  <div className="flex gap-4 pt-2">
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-slate-50 p-4 border-t flex justify-between h-14">
-                <Skeleton className="h-6 w-20" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-8 w-8 rounded-md" />
-                  <Skeleton className="h-8 w-8 rounded-md" />
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      ) : generatedSigs ? (
-        <AnimatePresence>
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-          >
-            {signatureStyles.map((style, i) => (
-              <motion.div
-                key={style.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <Card className="overflow-hidden border border-slate-200/60 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group bg-white">
-                  
-                  <CardContent className="p-0 relative flex flex-col h-full">
-                    <div className="absolute inset-x-0 top-0 bottom-auto h-40 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-30 pointer-events-none" />
+          <AnimatePresence>
+            {signatureStyles.map((style, i) => {
+              const analysis = generatedSigs?.analysis?.find(a => a.id === style.id);
+              
+              if (!analysis) {
+                if (isGenerating) {
+                  return (
+                    <Card key={`skeleton-${style.id}`} className="overflow-hidden border-slate-200 shadow-sm flex flex-col h-[280px]">
+                      <CardContent className="p-0 flex flex-col h-full">
+                        <div className="flex items-center justify-center h-40 p-8 border-b border-slate-100">
+                          <Skeleton className="h-8 w-3/4 rounded-full" />
+                        </div>
+                        <div className="p-4 flex-1 space-y-3">
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-5/6" />
+                          <div className="flex gap-4 pt-2">
+                            <Skeleton className="h-3 w-16" />
+                            <Skeleton className="h-3 w-16" />
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="bg-slate-50 p-4 border-t flex justify-between h-14">
+                        <Skeleton className="h-6 w-20" />
+                        <div className="flex gap-2">
+                          <Skeleton className="h-8 w-8 rounded-md" />
+                          <Skeleton className="h-8 w-8 rounded-md" />
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  );
+                }
+                return null;
+              }
+
+              return (
+                <motion.div
+                  key={style.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <Card className="overflow-hidden border border-slate-200/60 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group bg-white">
                     
-                    <button 
-                      onClick={() => setPreviewId(style.id)}
-                      className="absolute top-3 right-3 p-1.5 rounded-md bg-white/80 backdrop-blur w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm"
-                    >
-                      <Maximize2 className="w-4 h-4" />
-                    </button>
-
-                    <div 
-                      ref={(el) => { cardRefs.current[style.id] = el; }}
-                      className="flex items-center justify-center h-40 p-6 lg:p-8 overflow-hidden bg-transparent w-full relative z-0"
-                    >
-                      {(() => {
-                        const analysis = generatedSigs.analysis?.find((a) => a.id === style.id);
-                        if (!analysis || !analysis.svgData) {
-                          // Fallback to text if SVG somehow failed for a single item
-                          return (
-                            <span 
-                              style={{ 
-                                color: generatedSigs.color,
-                                fontSize: 'clamp(2rem, 3.5vw, 3.5rem)',
-                                lineHeight: 1.2,
-                                fontWeight: 'bold',
-                                fontStyle: 'italic'
-                              }}
-                              className="whitespace-nowrap inline-block transform origin-center transition-transform hover:scale-105"
-                            >
-                              {generatedSigs.name.charAt(0)}...
-                            </span>
-                          );
-                        }
-                        return (
-                          <svg
-                             viewBox="0 0 500 200"
-                             className="w-full h-full transform origin-center transition-transform hover:scale-105 drop-shadow-sm"
-                             preserveAspectRatio="xMidYMid meet"
-                          >
-                             <g transform={analysis.svgData.transform}>
-                                {analysis.svgData.paths.map((p, pIdx) => (
-                                   <path 
-                                     key={pIdx}
-                                     d={p.d} 
-                                     stroke={p.isStroke ? generatedSigs.color : "none"}
-                                     fill={p.isStroke ? "none" : generatedSigs.color}
-                                     strokeWidth={p.isStroke ? analysis.svgData!.strokeWidth : 0}
-                                     strokeLinecap="round"
-                                     strokeLinejoin="round"
-                                   />
-                                ))}
-                             </g>
-                          </svg>
-                        )
-                      })()}
-                    </div>
-
-                    <div className="p-4 border-t border-slate-100 bg-white flex-1 space-y-3">
-                      {(() => {
-                        const analysis = generatedSigs.analysis?.find((a) => a.id === style.id);
-                        if (!analysis) return <div className="animate-pulse h-20 bg-slate-100 rounded-md"></div>;
-                        return (
-                          <>
-                            <p className="text-sm text-slate-600 line-clamp-2" title={analysis.description}>
-                              {analysis.description}
-                            </p>
-                            <div className="flex gap-4 text-xs font-medium text-slate-500">
-                               <div className="flex items-center gap-1.5">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                  Prof: {analysis.professionalismScore}
-                               </div>
-                               <div className="flex items-center gap-1.5">
-                                  <div className="w-2 h-2 rounded-full bg-purple-500" />
-                                  Unique: {analysis.uniquenessScore}
-                               </div>
-                            </div>
-                            <p className="text-xs text-slate-500">
-                              <span className="font-semibold text-slate-700">Best for:</span> {analysis.recommendation}
-                            </p>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </CardContent>
-
-                  {/* Actions Area */}
-                  <CardFooter className="bg-slate-50/50 p-4 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center">
-                      <span className="text-xs font-medium text-slate-500 bg-white px-2 py-1 rounded shadow-sm border border-slate-100">
-                        {style.label}
-                      </span>
-                    </div>
-
-                    <div className="flex gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={`h-8 w-8 ${favorites.has(style.id) ? 'text-rose-500 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'}`}
-                        onClick={() => toggleFavorite(style.id)}
-                        title="Favorite"
-                      >
-                        <Heart className="w-4 h-4" fill={favorites.has(style.id) ? "currentColor" : "none"} />
-                      </Button>
+                    <CardContent className="p-0 relative flex flex-col h-full">
+                      <div className="absolute inset-x-0 top-0 bottom-auto h-40 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-30 pointer-events-none" />
                       
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                        onClick={() => copyToClipboard(style.id)}
-                        title="Copy to Clipboard"
+                      <button 
+                        onClick={() => setPreviewId(style.id)}
+                        className="absolute top-3 right-3 p-1.5 rounded-md bg-white/80 backdrop-blur w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm"
                       >
-                        <Copy className="w-4 h-4" />
-                      </Button>
+                        <Maximize2 className="w-4 h-4" />
+                      </button>
 
-                      <Link href={`/dashboard/learn?text=${encodeURIComponent(generatedSigs.name)}`}>
+                      <div 
+                        ref={(el) => { cardRefs.current[style.id] = el; }}
+                        className="flex items-center justify-center h-40 p-6 lg:p-8 overflow-hidden bg-transparent w-full relative z-0"
+                      >
+                        {(() => {
+                          if (!analysis.svgData) {
+                            return (
+                              <span 
+                                style={{ 
+                                  color: generatedSigs.color,
+                                  fontSize: 'clamp(2rem, 3.5vw, 3.5rem)',
+                                  lineHeight: 1.2,
+                                  fontWeight: 'bold',
+                                  fontStyle: 'italic'
+                                }}
+                                className="whitespace-nowrap inline-block transform origin-center transition-transform hover:scale-105"
+                              >
+                                {generatedSigs.name}
+                              </span>
+                            );
+                          }
+                          return (
+                            <svg
+                               viewBox="0 0 500 200"
+                               className="w-full h-full transform origin-center transition-transform hover:scale-105 drop-shadow-sm"
+                               preserveAspectRatio="xMidYMid meet"
+                            >
+                               <g transform={analysis.svgData.transform}>
+                                  {analysis.svgData.paths.map((p: any, pIdx: number) => (
+                                     <path 
+                                       key={pIdx}
+                                       d={p.d} 
+                                       stroke={p.isStroke ? generatedSigs.color : "none"}
+                                       fill={p.isStroke ? "none" : generatedSigs.color}
+                                       strokeWidth={p.isStroke ? analysis.svgData!.strokeWidth : 0}
+                                       strokeLinecap="round"
+                                       strokeLinejoin="round"
+                                     />
+                                  ))}
+                               </g>
+                            </svg>
+                          )
+                        })()}
+                      </div>
+
+                      <div className="p-4 border-t border-slate-100 bg-white flex-1 space-y-3">
+                        <p className="text-sm text-slate-600 line-clamp-2" title={analysis.description}>
+                          {analysis.description}
+                        </p>
+                        <div className="flex gap-4 text-xs font-medium text-slate-500">
+                           <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full bg-blue-500" />
+                              Prof: {analysis.professionalismScore}
+                           </div>
+                           <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full bg-purple-500" />
+                              Unique: {analysis.uniquenessScore}
+                           </div>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          <span className="font-semibold text-slate-700">Best for:</span> {analysis.recommendation}
+                        </p>
+                      </div>
+                    </CardContent>
+
+                    <CardFooter className="bg-slate-50/50 p-4 border-t border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <span className="text-xs font-medium text-slate-500 bg-white px-2 py-1 rounded shadow-sm border border-slate-100">
+                          {style.label}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className={`h-8 w-8 ${favorites.has(style.id) ? 'text-rose-500 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'}`}
+                          onClick={() => toggleFavorite(style.id)}
+                          title="Favorite"
+                        >
+                          <Heart className="w-4 h-4" fill={favorites.has(style.id) ? "currentColor" : "none"} />
+                        </Button>
+                        
                         <Button 
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                          title="Practice this signature"
+                          onClick={() => copyToClipboard(style.id)}
+                          title="Copy to Clipboard"
                         >
-                          <PenTool className="w-4 h-4" />
+                          <Copy className="w-4 h-4" />
                         </Button>
-                      </Link>
-                      
-                      <div className="flex rounded-md shadow-sm ml-1">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="h-8 px-2.5 rounded-r-none border-r-0 text-xs text-slate-500 hover:text-indigo-600 bg-white"
-                          onClick={() => downloadImage(style.id, 'png')}
-                          title="Download PNG"
-                        >
-                          <ImageIcon className="w-3.5 h-3.5 mr-1" />
-                          PNG
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="h-8 px-2.5 rounded-l-none text-xs text-slate-500 hover:text-indigo-600 bg-white"
-                          onClick={() => downloadImage(style.id, 'svg')}
-                          title="Download SVG"
-                        >
-                          <Download className="w-3.5 h-3.5 mr-1" />
-                          SVG
-                        </Button>
+
+                        <Link href={`/dashboard/learn?text=${encodeURIComponent(generatedSigs.name)}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                            title="Practice this signature"
+                          >
+                            <PenTool className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                        
+                        <div className="flex rounded-md shadow-sm ml-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 px-2.5 rounded-r-none border-r-0 text-xs text-slate-500 hover:text-indigo-600 bg-white"
+                            onClick={() => downloadImage(style.id, 'png')}
+                            title="Download PNG"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 mr-1" />
+                            PNG
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 px-2.5 rounded-l-none text-xs text-slate-500 hover:text-indigo-600 bg-white"
+                            onClick={() => downloadImage(style.id, 'svg')}
+                            title="Download SVG"
+                          >
+                            <Download className="w-3.5 h-3.5 mr-1" />
+                            SVG
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardFooter>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        </AnimatePresence>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
       ) : errorMsg ? (
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
